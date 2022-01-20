@@ -4,13 +4,18 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
+import com.google.android.gms.maps.model.BitmapDescriptor;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MapStyleOptions;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
@@ -23,20 +28,32 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.PermissionChecker;
 import androidx.wear.widget.SwipeDismissFrameLayout;
 
+import com.google.android.gms.maps.model.Polyline;
 import com.xiaoyun.fang.databinding.ActivityMapsBinding;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleLocationListener.LocationChangeInterface {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerDragListener {
 
     private GoogleMap mMap;
     private ActivityMapsBinding binding;
+
+    /// Location pins that will represents the start, aim and green center pins.
+    private static Marker greenCenterPin, greenCenterPinFlag, teeboxPin;
+    private static Marker aimPin;
+
+    /// Distance pins that will represents the distances between that location markers.
+    private Marker startCenterLabelPin, centerEndLabelPin;
+
+    /// Lines that will represents the lines that connect the location markers.
+    private Polyline startToCenterLine, centerToEndLine, shotTrackerLine;
 
     private ActivityResultLauncher<String[]> locationPermissionRequest;
 
@@ -117,65 +134,80 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         toast.show();
 
         // Adds a marker in Sydney, Australia and moves the camera.
-        LatLng sydney = new LatLng(0, 0);
-        mMap.addMarker(new MarkerOptions().position(sydney).title("Marker in Sydney"));
+        LatLng sydney = new LatLng(35.8742, 139.7858);
+        createGreenCenterPin();
+        createTeeBox();
+        createAimPin();
         mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
         mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-
-        GoogleLocationListener listener = new GoogleLocationListener(MapsActivity.this, this);
-        if (checkCoarseAndFineLocationPermission(MapsActivity.this)) {
-            mMap.setMyLocationEnabled(true);
-            mMap.getUiSettings().setMyLocationButtonEnabled(true);
-            // ユーザーの最後のアドレスを取得します。
-            listener.getFusedLocationProviderClient().getLastLocation().addOnSuccessListener(location -> {
-                this.onNewLocationChanged(location);
-            });
-            // ユーザがバックグラウンドアドレス権限をオンにすると、ユーザの所在地を更新し続けることができる。
-            listener.getFusedLocationProviderClient().requestLocationUpdates(listener.getLocationRequest(), listener.getLocationCallback(), Looper.getMainLooper());
-        } else {
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                locationPermissionRequest.launch(new String[] {
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION,
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                });
-            } else {
-                locationPermissionRequest.launch(new String[] {
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION
-                });
-            }
-        }
     }
 
     @Override
-    public void onNewLocationChanged(Location location) {
-        if (mMap != null && location != null) {
-            LatLng sydney = new LatLng(location.getLatitude(), location.getLongitude());
-            mMap.addMarker(new MarkerOptions().position(sydney).title("你所在的地方"));
-            mMap.moveCamera(CameraUpdateFactory.newLatLng(sydney));
-            mMap.setMapType(GoogleMap.MAP_TYPE_HYBRID);
-        }
+    public void onMarkerDrag(Marker marker) {
+
     }
 
-    public static boolean checkCoarseAndFineLocationPermission(Context context) {
-        if (!isPermissionGranted(context, Manifest.permission.ACCESS_COARSE_LOCATION) &&
-                !isPermissionGranted(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
-            return false;
-        } else {
-            return true;
-        }
+    @Override
+    public void onMarkerDragEnd(Marker marker) {
+
+
     }
 
-    public static boolean isPermissionGranted(Context context,String permission) {
-        int result;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            result = context.checkSelfPermission(permission);
-        } else {
-            result = PermissionChecker.checkSelfPermission(context, permission);
-        }
-        return result == PackageManager.PERMISSION_GRANTED;
+    @Override
+    public void onMarkerDragStart(Marker marker) {
+
     }
 
+    private void createGreenCenterPin(){
+        greenCenterPin = mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(35.87434, 139.7858)));
+        greenCenterPinFlag = mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(35.87434, 139.7858)));
+        greenCenterPin.setTitle("Green Center");
+        greenCenterPinFlag.setTitle("Green Center");
+        greenCenterPin.setIcon(BitmapDescriptorFactory.fromResource(R.drawable.greencenter_small));
+        Bitmap flag=BitmapFactory.decodeResource(getResources(),
+                R.drawable.flaghole);
+        Bitmap resize=Bitmap.createScaledBitmap(flag, 20, 48, false);
+        BitmapDescriptor bitmapDescriptor=BitmapDescriptorFactory.fromBitmap(resize);
+        greenCenterPinFlag.setIcon(bitmapDescriptor);
+        greenCenterPin.setZIndex(3);
+        greenCenterPinFlag.setZIndex(4);
+        greenCenterPin.setFlat(true);
+        greenCenterPin.setAnchor(0.5f, 0.5f);
+        greenCenterPinFlag.setAnchor(0f, 1f);
+    }
+
+    private void createTeeBox(){
+        teeboxPin = mMap.addMarker(new MarkerOptions()
+                .position(new LatLng(35.8740, 139.7858)));
+
+        teeboxPin.setZIndex(2);
+        teeboxPin.setFlat(true);
+        teeboxPin.setAnchor(0.5f, 0.5f);
+        teeboxPin.setInfoWindowAnchor(0.5f, 0.5f);
+        teeboxPin.setTitle("Tee Box");
+        Bitmap flag=BitmapFactory.decodeResource(getResources(), R.drawable.reddot_small);
+        Bitmap resize=Bitmap.createScaledBitmap(flag, 24, 24, false);
+        BitmapDescriptor bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(resize);
+        teeboxPin.setIcon(bitmapDescriptor);
+    }
+
+    private void createAimPin(){
+        // init
+        aimPin = mMap.addMarker(new MarkerOptions().position(new LatLng(35.8742, 139.7858)));
+
+        // Setting up
+        aimPin.setTitle("Aim Pin");
+        Bitmap flag=BitmapFactory.decodeResource(getResources(), R.drawable.map_aim_point_icon);
+        Bitmap resize=Bitmap.createScaledBitmap(flag, 30, 30, false);
+        BitmapDescriptor bitmapDescriptor = BitmapDescriptorFactory.fromBitmap(resize);
+        aimPin.setIcon(bitmapDescriptor);
+        aimPin.setZIndex(1);
+        aimPin.setFlat(true);
+        aimPin.setAnchor(0.5f, 0.5f);
+        aimPin.setInfoWindowAnchor(0.5f, 0.5f);
+        aimPin.setTag("aimPin");
+        aimPin.setDraggable(true);
+    }
 }
